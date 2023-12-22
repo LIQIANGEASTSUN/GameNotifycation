@@ -23,7 +23,7 @@ public class GameNotifycation : SingletonObject<GameNotifycation>
     ///  因为参数过多不利于使用，过长的参数容易因为次序错乱导致bug
     /////////////////////////////////////////////////////////////////////////////////
 
-    private Dictionary<ENUM_MSG_TYPE, Delegate> eventListeners = new Dictionary<ENUM_MSG_TYPE, Delegate>();
+    private Dictionary<ENUM_MSG_TYPE, Delegate> eventDicListeners = new Dictionary<ENUM_MSG_TYPE, Delegate>();
 
     #region AddListener
 
@@ -40,12 +40,22 @@ public class GameNotifycation : SingletonObject<GameNotifycation>
 
     private void AddEventListener(ENUM_MSG_TYPE msgType, Delegate cb)
     {
-        if (!HasEventListener(msgType))
+        Delegate list = null;
+        if (eventDicListeners.TryGetValue(msgType, out list))
         {
-            eventListeners[msgType] = null;
+            Delegate[] arr = list.GetInvocationList();
+            foreach (var invo in arr)
+            {
+                // 如果已经存在不再重复添加
+                if (Delegate.ReferenceEquals(invo.Method, cb.Method) && Delegate.ReferenceEquals(invo.Target, cb.Target))
+                {
+                    //UnityEngine.Debug.LogError("已存在:" + invo.Method.Name);
+                    return;
+                }
+            }
         }
-        Delegate lis = eventListeners[msgType];
-        eventListeners[msgType] = Delegate.Combine(lis, cb);
+
+        eventDicListeners[msgType] = Delegate.Combine(list, cb);
     }
 
     #endregion
@@ -65,11 +75,11 @@ public class GameNotifycation : SingletonObject<GameNotifycation>
 
     private void RemoveEventListener(ENUM_MSG_TYPE msgType, Delegate cb)
     {
-        if (HasEventListener(msgType))
+        Delegate list = null;
+        if (GetEventListener(msgType, out list))
         {
-            Delegate lis = eventListeners[msgType];
-            eventListeners[msgType] = Delegate.Remove(lis, cb);
-            if (null == eventListeners[msgType])
+            eventDicListeners[msgType] = Delegate.Remove(list, cb);
+            if (null == eventDicListeners[msgType])
             {
                 RemoveEventListener(msgType);
             }
@@ -78,31 +88,33 @@ public class GameNotifycation : SingletonObject<GameNotifycation>
 
     public void RemoveEventListener(ENUM_MSG_TYPE msgType)
     {
-        eventListeners.Remove(msgType);
+        eventDicListeners.Remove(msgType);
     }
     #endregion
 
     #region Notify
     public void Notify(ENUM_MSG_TYPE msgType)
     {
-        if (HasEventListener(msgType))
+        Delegate list = null;
+        if (GetEventListener(msgType, out list))
         {
-            ((NotifycationDelegate)eventListeners[msgType])();
+            ((NotifycationDelegate)list)();
         }
     }
 
     public void Notify<T>(ENUM_MSG_TYPE msgType, T args)
     {
-        if (HasEventListener(msgType))
+        Delegate list = null;
+        if (GetEventListener(msgType, out list))
         {
-            ((NotifycationDelegate<T>)eventListeners[msgType])(args);
+            ((NotifycationDelegate<T>)list)(args);
         }
     }
     #endregion
 
     //是否存在指定事件的监听
-    public bool HasEventListener(ENUM_MSG_TYPE msgType)
+    public bool GetEventListener(ENUM_MSG_TYPE msgType, out Delegate list)
     {
-        return eventListeners.ContainsKey(msgType);
+        return eventDicListeners.TryGetValue(msgType, out list);
     }
 }
